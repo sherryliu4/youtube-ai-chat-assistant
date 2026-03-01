@@ -12,7 +12,10 @@ import {
 } from '../services/mongoApi';
 import EngagementChart from './EngagementChart';
 import YouTubeDownload from './YouTubeDownload';
+import StatsTable from './StatsTable';
+import TimeSeriesChart from './TimeSeriesChart';
 import './Chat.css';
+import './StatsTable.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -798,15 +801,24 @@ ${sessionSummary}${slimCsvBlock}
               )}
 
               {/* Engagement charts from tool calls */}
-              {m.charts?.map((chart, ci) =>
-                chart._chartType === 'engagement' ? (
-                  <EngagementChart
-                    key={ci}
-                    data={chart.data}
-                    metricColumn={chart.metricColumn}
-                  />
-                ) : null
-              )}
+              {m.charts?.map((chart, ci) => {
+                if (chart._chartType === 'engagement') {
+                  return (
+                    <EngagementChart
+                      key={ci}
+                      data={chart.data}
+                      metricColumn={chart.metricColumn}
+                    />
+                  );
+                }
+                if (chart._chartType === 'stats') {
+                  return <StatsTable key={ci} data={chart} />;
+                }
+                if (chart._chartType === 'time_series') {
+                  return <TimeSeriesChart key={ci} data={chart.data} field={chart.field} />;
+                }
+                return null;
+              })}
 
               {/* Search sources */}
               {m.grounding?.groundingChunks?.length > 0 && (

@@ -63,6 +63,23 @@ export const CSV_TOOL_DECLARATIONS = [
       required: ['sort_column'],
     },
   },
+  {
+    name: 'compute_stats_json',
+    description:
+      'Calculate descriptive statistics (count, mean, median, std, min, max) for a numeric field in the loaded YouTube JSON data. ' +
+      'Use this when the user asks for stats on a specific field like view_count, like_count, duration_seconds, etc. ' +
+      'Ignore null/NaN values.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        field: {
+          type: 'STRING',
+          description: 'The exact field name to compute stats for (e.g. "view_count", "like_count").',
+        },
+      },
+      required: ['field'],
+    },
+  },
 ];
 
 // ── Parse a CSV line, respecting quoted fields ────────────────────────────────
@@ -344,6 +361,52 @@ export const executeTool = (toolName, args, rows) => {
         direction: asc ? 'ascending (lowest first)' : 'descending (highest first)',
         count: topRows.length,
         tweets: topRows,
+      };
+    }
+
+    case 'compute_stats_json': {
+      const col = resolveCol(rows, args.field);
+      console.log(`[compute_stats_json] resolved field: "${args.field}" → "${col}"`);
+      const vals = numericValues(rows, col);
+      if (!vals.length)
+        return { error: `No numeric values found in field "${col}". Available fields: ${availableHeaders.join(', ')}` };
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const sorted = [...vals].sort((a, b) => a - b);
+      const variance = vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length;
+      
+      return {
+        _chartType: 'stats',
+        field: col,
+        count: vals.length,
+        mean: fmt(mean),
+        median: fmt(median(sorted)),
+        std: fmt(Math.sqrt(variance)),
+        min: Math.min(...vals),
+        max: Math.max(...vals),
+      };
+    }
+
+    case 'plot_metric_vs_time': {
+      const field = resolveCol(rows, args.field);
+      console.log(`[plot_metric_vs_time] field: "${args.field}" → "${field}"`);
+      
+      // Filter valid data points
+      const data = rows
+        .map(r => ({
+          date: r.release_date || r.created_at || r.date, // Fallback for flexibility
+          value: parseFloat(r[field]),
+          title: r.title || ''
+        }))
+        .filter(d => d.date && !isNaN(d.value))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      if (!data.length)
+        return { error: `No valid data found for plotting "${field}" vs time.` };
+
+      return {
+        _chartType: 'time_series',
+        field,
+        data
       };
     }
 
