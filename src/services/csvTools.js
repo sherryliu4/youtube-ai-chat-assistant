@@ -80,6 +80,23 @@ export const CSV_TOOL_DECLARATIONS = [
       required: ['field'],
     },
   },
+  {
+    name: 'play_video',
+    description:
+      'Render a clickable video card for a specific video from the loaded YouTube JSON data. ' +
+      'Use this when the user asks to "play", "watch", or "show" a video. ' +
+      'You can select by "latest", "oldest", "most viewed", numeric index (e.g. "3"), or fuzzy title match.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        query: {
+          type: 'STRING',
+          description: 'Selection criteria: "most viewed", "latest", "oldest", numeric index ("1", "5"), or a keyword from the title.',
+        },
+      },
+      required: ['query'],
+    },
+  },
 ];
 
 // ── Parse a CSV line, respecting quoted fields ────────────────────────────────
@@ -407,6 +424,48 @@ export const executeTool = (toolName, args, rows) => {
         _chartType: 'time_series',
         field,
         data
+      };
+    }
+
+    case 'play_video': {
+      console.log(`[play_video] query="${args.query}"`);
+      if (!rows.length) return { error: 'No video data loaded.' };
+
+      const q = String(args.query).toLowerCase().trim();
+      let selected = null;
+
+      // 1. Special keywords
+      if (q.includes('most viewed') || q.includes('highest view')) {
+        selected = [...rows].sort((a, b) => (parseFloat(b.view_count) || 0) - (parseFloat(a.view_count) || 0))[0];
+      } else if (q.includes('latest') || q.includes('newest')) {
+        selected = [...rows].sort((a, b) => new Date(b.release_date) - new Date(a.release_date))[0];
+      } else if (q.includes('oldest')) {
+        selected = [...rows].sort((a, b) => new Date(a.release_date) - new Date(b.release_date))[0];
+      } 
+      // 2. Numeric index (1-based)
+      else if (/^\d+$/.test(q) || /^#\d+$/.test(q)) {
+        const idx = parseInt(q.replace('#', '')) - 1;
+        if (idx >= 0 && idx < rows.length) {
+          // Sort by date desc (default list order usually) or just take array index
+          // Let's assume array index for simplicity as "3rd video in list"
+          selected = rows[idx];
+        }
+      }
+      // 3. Fuzzy title match
+      else {
+        selected = rows.find(r => (r.title || '').toLowerCase().includes(q));
+      }
+
+      if (!selected) return { error: `No video found matching "${args.query}".` };
+
+      return {
+        _chartType: 'video_card',
+        video: {
+          title: selected.title,
+          release_date: selected.release_date,
+          view_count: selected.view_count,
+          video_url: selected.video_url
+        }
       };
     }
 

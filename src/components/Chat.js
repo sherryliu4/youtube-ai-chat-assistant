@@ -14,8 +14,10 @@ import EngagementChart from './EngagementChart';
 import YouTubeDownload from './YouTubeDownload';
 import StatsTable from './StatsTable';
 import TimeSeriesChart from './TimeSeriesChart';
+import VideoCard from './VideoCard';
 import './Chat.css';
 import './StatsTable.css';
+import './VideoCard.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -816,6 +818,9 @@ ${sessionSummary}${slimCsvBlock}
                 }
                 if (chart._chartType === 'time_series') {
                   return <TimeSeriesChart key={ci} data={chart.data} field={chart.field} />;
+                }
+                if (chart._chartType === 'video_card') {
+                  return <VideoCard key={ci} video={chart.video} />;
                 }
                 return null;
               })}

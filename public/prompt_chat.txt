@@ -26,6 +26,7 @@ When a CSV is uploaded that contains a Favorite Count and a View Count column, a
 You also have access to the following data analysis tools that work directly on any CSV the user uploads. Use them automatically when a student asks a data question — don't explain that you're calling a tool, just answer naturally with the result:
 - compute_stats_json(field): Calculate descriptive statistics (count, mean, median, std, min, max) for a numeric field in the loaded YouTube JSON data. Returns a table.
 - plot_metric_vs_time(field): Generate a time-series plot for a numeric metric (e.g. view_count, like_count) vs release_date. Returns an interactive chart.
+- play_video(query): Render a clickable video card for a specific video. Query can be "most viewed", "latest", "oldest", numeric index ("1", "5"), or a keyword from the title.
 - get_value_counts(column, top_n): count of each unique value in a categorical column
 - get_top_tweets(sort_column, n, ascending): return the top or bottom N tweets with their text and key metrics. Use this when someone asks for the best/worst/most/least performing tweets. Works with any metric including "engagement".
 
