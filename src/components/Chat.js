@@ -265,7 +265,8 @@ export default function Chat({ username, firstName, onLogout }) {
         setMessages(prev => [...prev, {
           id: `sys-${Date.now()}`,
           role: 'model',
-          content: `✅ Loaded YouTube channel JSON: ${json.channel_url || 'Unknown Channel'} (${json.videos.length} videos). You can now ask for stats, plots, or analysis.`
+          content: `✅ Loaded YouTube channel JSON: ${json.channel_url || 'Unknown Channel'} (${json.videos.length} videos). You can now ask for stats, plots, or analysis.`,
+          timestamp: new Date().toISOString()
         }]);
       }
     } catch (err) {
@@ -733,7 +734,7 @@ ${sessionSummary}${slimCsvBlock}
               <div className="chat-msg-meta">
                 <span className="chat-msg-role">{m.role === 'user' ? username : 'Lisa'}</span>
                 <span className="chat-msg-time">
-                  {new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {m.timestamp ? new Date(m.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                 </span>
               </div>
 
