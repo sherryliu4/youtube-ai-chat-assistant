@@ -55,6 +55,11 @@
   box-sizing: border-box;
 }
 
+.auth-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .auth-form input::placeholder {
   color: rgba(255, 255, 255, 0.3);
 }

@@ -3,7 +3,7 @@ import { CSV_TOOL_DECLARATIONS } from './csvTools';
 
 const genAI = new GoogleGenerativeAI(process.env.REACT_APP_GEMINI_API_KEY || '');
 
-const MODEL = 'gemini-2.0-flash';
+const MODEL = process.env.REACT_APP_GEMINI_MODEL || 'gemini-1.5-flash';
 
 const SEARCH_TOOL = { googleSearch: {} };
 const CODE_EXEC_TOOL = { codeExecution: {} };
@@ -33,8 +33,15 @@ async function loadSystemPrompt() {
 // useCodeExecution: pass true to use codeExecution tool (CSV/analysis),
 //                   false (default) to use googleSearch tool.
 // Note: Gemini does not support both tools simultaneously.
-export const streamChat = async function* (history, newMessage, imageParts = [], useCodeExecution = false) {
+export const streamChat = async function* (history, newMessage, imageParts = [], useCodeExecution = false, userContext = {}) {
   const systemInstruction = await loadSystemPrompt();
+  
+  // Personalization injection
+  let personalizedSystemInstruction = systemInstruction;
+  if (userContext.firstName) {
+    personalizedSystemInstruction = `You are talking to ${userContext.firstName} ${userContext.lastName || ''}. Address them by name in your first response.\n\n${systemInstruction}`;
+  }
+
   const tools = useCodeExecution ? [CODE_EXEC_TOOL] : [SEARCH_TOOL];
   const model = genAI.getGenerativeModel({
     model: MODEL,
@@ -46,11 +53,11 @@ export const streamChat = async function* (history, newMessage, imageParts = [],
     parts: [{ text: m.content || '' }],
   }));
 
-  const chatHistory = systemInstruction
+  const chatHistory = personalizedSystemInstruction
     ? [
         {
           role: 'user',
-          parts: [{ text: `Follow these instructions in every response:\n\n${systemInstruction}` }],
+          parts: [{ text: `Follow these instructions in every response:\n\n${personalizedSystemInstruction}` }],
         },
         { role: 'model', parts: [{ text: "Got it! I'll follow those instructions." }] },
         ...baseHistory,
@@ -128,8 +135,15 @@ export const streamChat = async function* (history, newMessage, imageParts = [],
 // executeFn(toolName, args) → plain JS object with the result
 // Returns the final text response from the model.
 
-export const chatWithCsvTools = async (history, newMessage, csvHeaders, executeFn) => {
+export const chatWithCsvTools = async (history, newMessage, csvHeaders, executeFn, userContext = {}) => {
   const systemInstruction = await loadSystemPrompt();
+  
+  // Personalization injection
+  let personalizedSystemInstruction = systemInstruction;
+  if (userContext.firstName) {
+    personalizedSystemInstruction = `You are talking to ${userContext.firstName} ${userContext.lastName || ''}. Address them by name in your first response.\n\n${systemInstruction}`;
+  }
+
   const model = genAI.getGenerativeModel({
     model: MODEL,
     tools: [{ functionDeclarations: CSV_TOOL_DECLARATIONS }],
@@ -140,11 +154,11 @@ export const chatWithCsvTools = async (history, newMessage, csvHeaders, executeF
     parts: [{ text: m.content || '' }],
   }));
 
-  const chatHistory = systemInstruction
+  const chatHistory = personalizedSystemInstruction
     ? [
         {
           role: 'user',
-          parts: [{ text: `Follow these instructions in every response:\n\n${systemInstruction}` }],
+          parts: [{ text: `Follow these instructions in every response:\n\n${personalizedSystemInstruction}` }],
         },
         { role: 'model', parts: [{ text: "Got it! I'll follow those instructions." }] },
         ...baseHistory,

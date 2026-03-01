@@ -11,6 +11,7 @@ import {
   loadMessages,
 } from '../services/mongoApi';
 import EngagementChart from './EngagementChart';
+import YouTubeDownload from './YouTubeDownload';
 import './Chat.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -110,7 +111,8 @@ function StructuredParts({ parts }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function Chat({ username, onLogout }) {
+export default function Chat({ username, firstName, onLogout }) {
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'download'
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -172,6 +174,7 @@ export default function Chat({ username, onLogout }) {
   // ── Session management ──────────────────────────────────────────────────────
 
   const handleNewChat = () => {
+    setActiveTab('chat');
     setActiveSessionId('new');
     setMessages([]);
     setInput('');
@@ -182,7 +185,8 @@ export default function Chat({ username, onLogout }) {
   };
 
   const handleSelectSession = (sessionId) => {
-    if (sessionId === activeSessionId) return;
+    if (sessionId === activeSessionId && activeTab === 'chat') return;
+    setActiveTab('chat');
     setActiveSessionId(sessionId);
     setInput('');
     setImages([]);
@@ -439,7 +443,8 @@ ${sessionSummary}${slimCsvBlock}
           history,
           promptForGemini,
           sessionCsvHeaders,
-          (toolName, args) => executeTool(toolName, args, sessionCsvRows)
+          (toolName, args) => executeTool(toolName, args, sessionCsvRows),
+          { firstName }
         );
         fullContent = answer;
         toolCharts = returnedCharts || [];
@@ -460,7 +465,7 @@ ${sessionSummary}${slimCsvBlock}
         );
       } else {
         // ── Streaming path: code execution or search ─────────────────────────
-        for await (const chunk of streamChat(history, promptForGemini, imageParts, useCodeExecution)) {
+        for await (const chunk of streamChat(history, promptForGemini, imageParts, useCodeExecution, { firstName })) {
           if (abortRef.current) break;
           if (chunk.type === 'text') {
             fullContent += chunk.text;
@@ -480,7 +485,10 @@ ${sessionSummary}${slimCsvBlock}
         }
       }
     } catch (err) {
-      const errText = `Error: ${err.message}`;
+      let errText = `Error: ${err.message}`;
+      if (err.message.includes('404') || err.message.includes('not found')) {
+        errText = `Model not available. Please change REACT_APP_GEMINI_MODEL in .env (currently trying ${process.env.REACT_APP_GEMINI_MODEL || 'default'}).`;
+      }
       setMessages((m) =>
         m.map((msg) => (msg.id === assistantId ? { ...msg, content: errText } : msg))
       );
@@ -538,6 +546,13 @@ ${sessionSummary}${slimCsvBlock}
           <button className="new-chat-btn" onClick={handleNewChat}>
             + New Chat
           </button>
+          <button 
+            className={`new-chat-btn ${activeTab === 'download' ? 'active' : ''}`}
+            style={{ marginTop: '0.5rem', background: activeTab === 'download' ? '#334155' : 'transparent', border: '1px solid #334155' }}
+            onClick={() => setActiveTab('download')}
+          >
+            YouTube Download
+          </button>
         </div>
 
         <div className="sidebar-sessions">
@@ -584,7 +599,10 @@ ${sessionSummary}${slimCsvBlock}
 
       {/* ── Main chat area ───────────────────────── */}
       <div className="chat-main">
-        <>
+        {activeTab === 'download' ? (
+          <YouTubeDownload />
+        ) : (
+          <>
         <header className="chat-header">
           <h2 className="chat-header-title">{activeSession?.title ?? 'New Chat'}</h2>
         </header>
@@ -772,6 +790,7 @@ ${sessionSummary}${slimCsvBlock}
           </div>
         </div>
         </>
+        )}
       </div>
     </div>
   );

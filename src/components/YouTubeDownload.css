@@ -1,0 +1,124 @@
+.yt-download {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: #0f172a;
+  color: white;
+  min-height: 100%;
+}
+
+.yt-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2.5rem;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.yt-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.yt-subtitle {
+  color: #94a3b8;
+  margin-bottom: 2rem;
+}
+
+.yt-form label {
+  display: block;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.yt-form input {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: white;
+  font-size: 1rem;
+}
+
+.yt-form input:focus {
+  outline: none;
+  border-color: #6366f1;
+}
+
+.yt-btn {
+  width: 100%;
+  padding: 0.85rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  margin-top: 0.5rem;
+  transition: all 0.2s;
+}
+
+.yt-btn.primary {
+  background: #4f46e5;
+  color: white;
+}
+.yt-btn.primary:hover { background: #4338ca; }
+.yt-btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.yt-btn.download {
+  background: #10b981;
+  color: white;
+  margin-bottom: 0.5rem;
+}
+.yt-btn.download:hover { background: #059669; }
+
+.yt-btn.text {
+  background: transparent;
+  color: #94a3b8;
+}
+.yt-btn.text:hover { color: white; }
+
+.yt-error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 0.75rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.yt-progress-area {
+  margin: 1.5rem 0;
+}
+
+.yt-progress-bar {
+  height: 8px;
+  background: #334155;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.yt-progress-fill {
+  height: 100%;
+  background: #4f46e5;
+  transition: width 0.3s ease;
+}
+
+.yt-status-text {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.yt-success {
+  text-align: center;
+  margin-top: 1rem;
+}
