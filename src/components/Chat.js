@@ -118,6 +118,7 @@ export default function Chat({ username, firstName, onLogout }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [images, setImages] = useState([]);
+  const [activeChannelData, setActiveChannelData] = useState(null); // Loaded YouTube JSON
   const [csvContext, setCsvContext] = useState(null);     // pending attachment chip
   const [sessionCsvRows, setSessionCsvRows] = useState(null);    // parsed rows for JS tools
   const [sessionCsvHeaders, setSessionCsvHeaders] = useState(null); // headers for tool routing
@@ -141,6 +142,18 @@ export default function Chat({ username, firstName, onLogout }) {
       const list = await getSessions(username);
       setSessions(list);
       setActiveSessionId('new'); // always start with a fresh empty chat on login
+      
+      // Load persisted channel data
+      const savedChannel = localStorage.getItem('activeChannelData');
+      if (savedChannel) {
+        try {
+          const json = JSON.parse(savedChannel);
+          loadChannelData(json, false); // false = don't alert, just load
+        } catch (e) {
+          console.error('Failed to load saved channel data', e);
+          localStorage.removeItem('activeChannelData');
+        }
+      }
     };
     init();
   }, [username]);
@@ -180,8 +193,7 @@ export default function Chat({ username, firstName, onLogout }) {
     setInput('');
     setImages([]);
     setCsvContext(null);
-    setSessionCsvRows(null);
-    setSessionCsvHeaders(null);
+    // Don't clear activeChannelData on new chat, it's global context until cleared
   };
 
   const handleSelectSession = (sessionId) => {
@@ -191,8 +203,7 @@ export default function Chat({ username, firstName, onLogout }) {
     setInput('');
     setImages([]);
     setCsvContext(null);
-    setSessionCsvRows(null);
-    setSessionCsvHeaders(null);
+    // Keep channel data if loaded
   };
 
   const handleDeleteSession = async (sessionId, e) => {
@@ -208,6 +219,69 @@ export default function Chat({ username, firstName, onLogout }) {
   };
 
   // ── File handling ───────────────────────────────────────────────────────────
+
+  const validateYoutubeJson = (json) => {
+    if (!json || typeof json !== 'object') throw new Error('Invalid JSON format');
+    if (!Array.isArray(json.videos)) throw new Error('Missing "videos" array');
+    if (json.videos.length === 0) throw new Error('Videos array is empty');
+    
+    const required = ['title', 'description', 'release_date', 'video_url'];
+    const sample = json.videos[0];
+    const missing = required.filter(f => sample[f] === undefined);
+    if (missing.length) throw new Error(`Missing required fields in video objects: ${missing.join(', ')}`);
+    
+    return true;
+  };
+
+  const loadChannelData = (json, showAlert = true) => {
+    try {
+      validateYoutubeJson(json);
+      
+      // Convert videos to flat rows for tools
+      const rows = json.videos.map(v => ({
+        ...v,
+        transcript: v.transcript ? v.transcript.slice(0, 1000) + '...' : '', // Truncate for CSV tools to save memory
+        // Ensure numeric fields are numbers or null
+        view_count: v.view_count || 0,
+        like_count: v.like_count || 0,
+        comment_count: v.comment_count || 0,
+        duration_seconds: v.duration_seconds || 0
+      }));
+
+      // Extract headers from first row
+      const rawHeaders = Object.keys(rows[0]);
+      
+      const { rows: enrichedRows, headers } = enrichWithEngagement(rows, rawHeaders);
+      
+      setSessionCsvRows(enrichedRows);
+      setSessionCsvHeaders(headers);
+      setCsvDataSummary(computeDatasetSummary(enrichedRows, headers));
+      setSessionSlimCsv(buildSlimCsv(enrichedRows, headers));
+      
+      setActiveChannelData(json);
+      localStorage.setItem('activeChannelData', JSON.stringify(json));
+
+      if (showAlert) {
+        setMessages(prev => [...prev, {
+          id: `sys-${Date.now()}`,
+          role: 'model',
+          content: `✅ Loaded YouTube channel JSON: ${json.channel_url || 'Unknown Channel'} (${json.videos.length} videos). You can now ask for stats, plots, or analysis.`
+        }]);
+      }
+    } catch (err) {
+      console.error(err);
+      if (showAlert) alert(`Failed to load JSON: ${err.message}`);
+    }
+  };
+
+  const clearChannelData = () => {
+    setActiveChannelData(null);
+    setSessionCsvRows(null);
+    setSessionCsvHeaders(null);
+    setCsvDataSummary(null);
+    setSessionSlimCsv(null);
+    localStorage.removeItem('activeChannelData');
+  };
 
   const fileToBase64 = (file) =>
     new Promise((resolve, reject) => {
@@ -231,7 +305,19 @@ export default function Chat({ username, firstName, onLogout }) {
     const files = [...e.dataTransfer.files];
 
     const csvFiles = files.filter((f) => f.name.endsWith('.csv') || f.type === 'text/csv');
+    const jsonFiles = files.filter((f) => f.name.endsWith('.json') || f.type === 'application/json');
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+
+    if (jsonFiles.length > 0) {
+      const text = await fileToText(jsonFiles[0]);
+      try {
+        const json = JSON.parse(text);
+        loadChannelData(json);
+      } catch (err) {
+        alert('Invalid JSON file');
+      }
+      return; // Prioritize JSON over CSV if both dropped
+    }
 
     if (csvFiles.length > 0) {
       const file = csvFiles[0];
@@ -266,7 +352,19 @@ export default function Chat({ username, firstName, onLogout }) {
     e.target.value = '';
 
     const csvFiles = files.filter((f) => f.name.endsWith('.csv') || f.type === 'text/csv');
+    const jsonFiles = files.filter((f) => f.name.endsWith('.json') || f.type === 'application/json');
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+
+    if (jsonFiles.length > 0) {
+      const text = await fileToText(jsonFiles[0]);
+      try {
+        const json = JSON.parse(text);
+        loadChannelData(json);
+      } catch (err) {
+        alert('Invalid JSON file');
+      }
+      return;
+    }
 
     if (csvFiles.length > 0) {
       const text = await fileToText(csvFiles[0]);
@@ -343,7 +441,7 @@ export default function Chat({ username, firstName, onLogout }) {
     const wantPythonOnly = PYTHON_ONLY_KEYWORDS.test(text);
     const wantCode = CODE_KEYWORDS.test(text) && !sessionCsvRows;
     const capturedCsv = csvContext;
-    const hasCsvInSession = !!sessionCsvRows || !!capturedCsv;
+    const hasCsvInSession = !!sessionCsvRows || !!capturedCsv || !!activeChannelData;
     // Base64 is only worth sending when Gemini will actually run Python
     const needsBase64 = !!capturedCsv && wantPythonOnly;
     // Mode selection:
@@ -392,8 +490,25 @@ ${sessionSummary}${slimCsvBlock}
 
     // userContent  — displayed in bubble and stored in MongoDB (never contains base64)
     // promptForGemini — sent to the Gemini API (may contain the full prefix)
-    const userContent = text || (images.length ? '(Image)' : '(CSV attached)');
-    const promptForGemini = csvPrefix + (text || (images.length ? 'What do you see in this image?' : 'Please analyze this CSV data.'));
+    const userContent = text || (images.length ? '(Image)' : (capturedCsv ? '(CSV attached)' : (activeChannelData ? '(JSON loaded)' : '')));
+    
+    // Personalization: Inject name into the prompt context
+    const nameContext = firstName ? `User's first name: ${firstName}. ` : '';
+    const greetingInstruction = (messages.length === 0 && firstName) 
+      ? ` IMPORTANT: Start your response by greeting the user as ${firstName}.` 
+      : '';
+
+    // Inject JSON context if active
+    let jsonContext = '';
+    if (activeChannelData && !capturedCsv) {
+      jsonContext = `[Loaded Channel Data: ${activeChannelData.channel_url} | ${activeChannelData.videos.length} videos]. 
+      The dataset is loaded into the tools. You can use tools to query stats.
+      Available columns: ${sessionCsvHeaders?.join(', ')}.
+      
+      `;
+    }
+
+    const promptForGemini = nameContext + jsonContext + csvPrefix + (text || (images.length ? 'What do you see in this image?' : 'Please analyze this data.')) + greetingInstruction;
 
     const userMsg = {
       id: `u-${Date.now()}`,
@@ -717,7 +832,7 @@ ${sessionSummary}${slimCsvBlock}
           <div ref={bottomRef} />
         </div>
 
-        {dragOver && <div className="chat-drop-overlay">Drop CSV or images here</div>}
+        {dragOver && <div className="chat-drop-overlay">Drop JSON, CSV or images here</div>}
 
         {/* ── Input area ── */}
         <div className="chat-input-area">
@@ -730,6 +845,18 @@ ${sessionSummary}${slimCsvBlock}
                 {csvContext.rowCount} rows · {csvContext.headers.length} cols
               </span>
               <button className="csv-chip-remove" onClick={() => setCsvContext(null)} aria-label="Remove CSV">×</button>
+            </div>
+          )}
+
+          {/* Channel Data Chip */}
+          {activeChannelData && (
+            <div className="csv-chip" style={{ background: 'rgba(16, 185, 129, 0.2)', borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+              <span className="csv-chip-icon">📺</span>
+              <span className="csv-chip-name">Channel Data</span>
+              <span className="csv-chip-meta">
+                {activeChannelData.videos.length} videos
+              </span>
+              <button className="csv-chip-remove" onClick={clearChannelData} aria-label="Clear Data">×</button>
             </div>
           )}
 
@@ -782,7 +909,7 @@ ${sessionSummary}${slimCsvBlock}
             ) : (
               <button
                 onClick={handleSend}
-                disabled={!input.trim() && !images.length && !csvContext}
+                disabled={!input.trim() && !images.length && !csvContext && !activeChannelData}
               >
                 Send
               </button>
