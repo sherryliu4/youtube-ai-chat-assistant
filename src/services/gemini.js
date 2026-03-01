@@ -135,7 +135,7 @@ export const streamChat = async function* (history, newMessage, imageParts = [],
 // executeFn(toolName, args) → plain JS object with the result
 // Returns the final text response from the model.
 
-export const chatWithCsvTools = async (history, newMessage, csvHeaders, executeFn, userContext = {}) => {
+export const chatWithCsvTools = async (history, newMessage, csvHeaders, executeFn, userContext = {}, imageParts = []) => {
   const systemInstruction = await loadSystemPrompt();
   
   // Personalization injection
@@ -172,7 +172,14 @@ export const chatWithCsvTools = async (history, newMessage, csvHeaders, executeF
     ? `[CSV columns: ${csvHeaders.join(', ')}]\n\n${newMessage}`
     : newMessage;
 
-  let response = (await chat.sendMessage(msgWithContext)).response;
+  const parts = [
+    { text: msgWithContext },
+    ...imageParts.map((img) => ({
+      inlineData: { mimeType: img.mimeType || 'image/png', data: img.data },
+    })),
+  ];
+
+  let response = (await chat.sendMessage(parts)).response;
 
   // Accumulate chart payloads and a log of every tool call made
   const charts = [];
@@ -186,7 +193,7 @@ export const chatWithCsvTools = async (history, newMessage, csvHeaders, executeF
 
     const { name, args } = funcCall.functionCall;
     console.log('[CSV Tool]', name, args);
-    const toolResult = executeFn(name, args);
+    const toolResult = await executeFn(name, args);
     console.log('[CSV Tool result]', toolResult);
 
     // Log the call for persistence

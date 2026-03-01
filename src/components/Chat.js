@@ -15,9 +15,11 @@ import YouTubeDownload from './YouTubeDownload';
 import StatsTable from './StatsTable';
 import TimeSeriesChart from './TimeSeriesChart';
 import VideoCard from './VideoCard';
+import ImageCard from './ImageCard';
 import './Chat.css';
 import './StatsTable.css';
 import './VideoCard.css';
+import './ImageCard.css';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -117,7 +119,8 @@ function StructuredParts({ parts }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function Chat({ username, firstName, onLogout }) {
-  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'download'
+  const [activeTab, setActiveTab] = useState('chat'); 
+  const [anchorImageDataUrl, setAnchorImageDataUrl] = useState(null);// 'chat' | 'download'
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -307,8 +310,26 @@ export default function Chat({ username, firstName, onLogout }) {
 
   const handleDrop = async (e) => {
     e.preventDefault();
-    setDragOver(false);
-    const files = [...e.dataTransfer.files];
+    const handleDrop = async (e) => {
+      e.preventDefault();
+      setDragOver(false);
+    
+      const files = Array.from(e.dataTransfer.files || []);
+      if (!files.length) return;
+    
+      const firstFile = files[0];
+    
+      if (firstFile.type && firstFile.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setAnchorImageDataUrl(reader.result);
+        };
+        reader.readAsDataURL(firstFile);
+        return;
+      }
+    
+      // ✅ keep your existing CSV/JSON logic below here
+    };
 
     const csvFiles = files.filter((f) => f.name.endsWith('.csv') || f.type === 'text/csv');
     const jsonFiles = files.filter((f) => f.name.endsWith('.json') || f.type === 'application/json');
@@ -565,7 +586,8 @@ ${sessionSummary}${slimCsvBlock}
           promptForGemini,
           sessionCsvHeaders,
           (toolName, args) => executeTool(toolName, args, sessionCsvRows),
-          { firstName }
+          { firstName },
+          imageParts
         );
         fullContent = answer;
         toolCharts = returnedCharts || [];
@@ -821,6 +843,9 @@ ${sessionSummary}${slimCsvBlock}
                 }
                 if (chart._chartType === 'video_card') {
                   return <VideoCard key={ci} video={chart.video} />;
+                }
+                if (chart._chartType === 'image_card') {
+                  return <ImageCard key={ci} imageUrl={chart.imageUrl} prompt={chart.prompt} />;
                 }
                 return null;
               })}

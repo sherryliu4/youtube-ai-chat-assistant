@@ -1,0 +1,2 @@
+# For scripts/generate_user_image.py (image generation in chat)
+google-genai>=1.0.0

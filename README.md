@@ -2,6 +2,59 @@
 
 A React chatbot with Gemini AI, web search, user auth, MongoDB persistence, and client-side data analysis. Glassmorphism UI with streaming responses, CSV upload, and code execution.
 
+---
+
+## HW5 Features Added
+
+### 1) Account personalization
+- **First name and Last name** fields in the Sign Up / Create Account form (required, validated).
+- Stored in **MongoDB** in the `users` collection (`firstName`, `lastName`).
+- User's name is **included in chat context** (system/user context sent to Gemini).
+- **System prompt greets the user by first name** on the first assistant message (e.g. “Hi Sherry — …”).
+
+### 2) YouTube Channel Download tab
+- After login, a tab **“YouTube Channel Download”** lets the user:
+  - Enter a **channel URL** and **max videos** (default 10, max 100).
+  - Download **metadata** for each video: title, description, transcript (if available), duration, release date, view count, like count, comment count, video URL.
+- **Progress bar** shown while the download runs.
+- Result is saved as **JSON**; user can **download the JSON file**.
+- **Veritasium test file:** `public/veritasium_channel_data.json` (10 videos from https://www.youtube.com/@veritasium).
+
+### 3) Chat tools
+- **Stats:** `compute_stats_json` — compute summary statistics for numeric columns (e.g. view_count) on loaded channel JSON.
+- **Plot:** `plot_metric_vs_time` — generate time-series plots (numeric metric vs release_date) with tooltip and optional CSV download.
+- **Play video:** `play_video` — open a video link card (e.g. “most viewed”, “latest”, “#3”, or fuzzy title match); card opens video URL in a new tab.
+- **Generate image:** `generateImage` — requires **anchor image** (drag/drop into chat) + **text prompt**; outputs generated image in chat with **click-to-enlarge lightbox** and **download** button.
+
+---
+
+## How to Run Locally
+
+```bash
+npm install
+npm run server
+```
+
+In a **second terminal**:
+
+```bash
+npm run client
+```
+
+- Backend runs at `http://localhost:3001`; frontend at `http://localhost:3000` (proxies `/api` to the server).
+- For image generation, also run: `pip install -r requirements.txt` (Python + `google-genai`).
+
+---
+
+## How to Test (Grader Checklist)
+
+- **Account + greeting:** Create a new account with first and last name; log in and confirm the first assistant message greets you by first name.
+- **YouTube Channel Download:** Open the “YouTube Channel Download” tab; enter `https://www.youtube.com/@veritasium` and 10 videos; start download; confirm progress bar and that “Download JSON” works; confirm `public/veritasium_channel_data.json` exists.
+- **JSON in chat:** Drag the channel JSON (or `public/veritasium_channel_data.json`) into the chat; ask for stats (e.g. “compute stats for view_count”) and a plot (e.g. “plot view_count vs time”); confirm stats table and chart appear.
+- **Generate image:** Drag an **anchor image** into the chat and ask to generate an image (e.g. “generate a poster of a flower”); confirm the generated image appears, **click-to-enlarge (lightbox)** works, and the **download** button works.
+
+---
+
 ## How It Works
 
 - **Frontend (React)** – Login/create account, chat UI with streaming, drag-and-drop CSV/images, Recharts bar charts
@@ -20,6 +73,18 @@ Create a `.env` file in the project root with:
 | `REACT_APP_API_URL` | Production only | Frontend (baked in at build) | Full URL of the backend, e.g. `https://your-backend.onrender.com`. Leave blank for local dev (proxy handles it). |
 
 The backend also accepts `MONGODB_URI` or `REACT_APP_MONGO_URI` as the MongoDB connection string if you prefer those names.
+
+### Image generation (chat “create an image”)
+
+When a user asks to create an image, the chatbot uses the **generateImage** tool, which calls a custom Python function (`scripts/generate_user_image.py`) using the **google-genai** SDK with `response_modalities=['IMAGE']`.
+
+1. **Python dependency:** From the project root run:  
+   `pip install -r requirements.txt`  
+   (installs `google-genai`).
+
+2. **API key:** The script uses the same key as chat: `REACT_APP_GEMINI_API_KEY` in `.env` (or `react_app_genmini_api_key` / `GEMINI_API_KEY` in the environment when running the script).
+
+3. **Output:** Generated images are saved as `server/generated_images/output_{timestamp}.png` and returned to the chat as a data URL for display and download.
 
 ### Example `.env` (local development)
 

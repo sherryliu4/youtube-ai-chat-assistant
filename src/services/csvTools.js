@@ -97,6 +97,22 @@ export const CSV_TOOL_DECLARATIONS = [
       required: ['query'],
     },
   },
+  {
+    name: 'generateImage',
+    description:
+      'Generate an image from a text description. Use this when the user asks to "generate an image", "create a thumbnail", or "make a picture". ' +
+      'Returns a generated image displayed in the chat.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        prompt: {
+          type: 'STRING',
+          description: 'A detailed description of the image to generate.',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
 ];
 
 // ── Parse a CSV line, respecting quoted fields ────────────────────────────────
@@ -290,7 +306,7 @@ export const computeDatasetSummary = (rows, headers) => {
 
 // ── Client-side tool executor ─────────────────────────────────────────────────
 
-export const executeTool = (toolName, args, rows) => {
+export const executeTool = async (toolName, args, rows) => {
   const availableHeaders = rows.length ? Object.keys(rows[0]) : [];
   console.group(`[CSV Tool] ${toolName}`);
   console.log('args:', args);
@@ -466,6 +482,41 @@ export const executeTool = (toolName, args, rows) => {
           view_count: selected.view_count,
           video_url: selected.video_url
         }
+      };
+    }
+
+    case 'generateImage': {
+      // Custom direct function: any image request calls backend generate_image_direct (not Cursor/built-in tool)
+      console.log(`[generateImage] prompt="${args.prompt}"`);
+      let imageUrl = null;
+      try {
+        const response = await fetch('/api/image/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: args.prompt })
+        });
+        const text = await response.text();
+        let data = {};
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch (_) {
+          return { error: `Image service error (${response.status}): ${text.slice(0, 200)}` };
+        }
+        if (response.ok && data.imageDataUrl) {
+          imageUrl = data.imageDataUrl;
+        } else {
+          return { error: data.error || 'Image generation failed' };
+        }
+      } catch (err) {
+        console.error('Image generation fetch failed:', err);
+        const msg = err && err.message ? err.message : 'Network or server error';
+        return { error: `Failed to connect to image generation service: ${msg}` };
+      }
+
+      return {
+        _chartType: 'image_card',
+        prompt: args.prompt,
+        imageUrl: imageUrl
       };
     }
 

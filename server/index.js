@@ -7,6 +7,7 @@ const { Innertube, UniversalCache } = require('youtubei.js');
 const { YoutubeTranscript } = require('youtube-transcript');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
 const app = express();
 app.use(cors());
@@ -374,6 +375,57 @@ async function processChannelDownload(jobId, channelUrl, limit) {
     jobs[jobId].message = err.message;
   }
 }
+
+// ── Image generation (custom: generate_image_direct via Python, bypasses built-in tool) ─
+
+app.post('/api/image/generate', (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt || typeof prompt !== 'string') {
+    return res.status(400).json({ error: 'Prompt required' });
+  }
+  const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: 'API key not configured. Set REACT_APP_GEMINI_API_KEY in .env' });
+  }
+  let responded = false;
+  const send = (status, body) => {
+    if (responded) return;
+    responded = true;
+    res.status(status).json(body);
+  };
+  const scriptPath = path.join(__dirname, '..', 'scripts', 'generate_user_image.py');
+  const env = { ...process.env, IMAGE_PROMPT: prompt, REACT_APP_GEMINI_API_KEY: apiKey };
+  const py = process.platform === 'win32' ? 'python' : 'python3';
+  console.log('[image] Spawning', py, scriptPath);
+  const child = spawn(py, [scriptPath], {
+    cwd: path.join(__dirname, '..'),
+    env,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => { stdout += chunk; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  child.on('error', (err) => {
+    console.error('[image] Spawn error:', err.message);
+    send(500, { error: 'Image generator not available: ' + err.message + '. Install Python and run: pip install -r requirements.txt' });
+  });
+  child.on('close', (code) => {
+    if (responded) return;
+    console.log('[image] Python exit', code, 'stdout length', stdout.length, 'stderr length', stderr.length);
+    try {
+      const result = JSON.parse(stdout.trim() || '{}');
+      if (result.ok && result.base64) {
+        const dataUrl = `data:image/png;base64,${result.base64}`;
+        return send(200, { imageDataUrl: dataUrl });
+      }
+      send(500, { error: result.error || 'Image generation failed' });
+    } catch (e) {
+      console.error('[image] Parse error:', e.message, 'stdout:', stdout.slice(0, 500), 'stderr:', stderr.slice(0, 500));
+      send(500, { error: stderr.trim() || stdout.trim() || 'Image generation failed (invalid script output)' });
+    }
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 
